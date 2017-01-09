@@ -9,9 +9,11 @@ rm(list=ls()) # removes all prior objects
 library("seacarb") #seawater carbonate chemistry
 library("reshape") #reshape data
 library("plotrix") #functions in tapply
+library(ggplot2)
+library(gridExtra)
 
 #############################################################
-setwd("/Users/hputnam/MyProjects/Geoduck_Epi/project-geoduck-oa/RAnalysis/Data/") #set working directory
+setwd("/Users/hputnam/MyProjects/Geoduck_Epi/project_larval_geoduck_OA/RAnalysis/Data/") #set working directory
 
 #Required Data files
 #pH_Calibration_Files/
@@ -124,6 +126,7 @@ gmean_cells <- tapply(cell.counts$cells.ml, cell.counts$Treatment, mean, na.rm =
 gse_cells <- tapply(cell.counts$cells.ml, cell.counts$Treatment, std.error, na.rm = TRUE)
 
 ##### Larval Counts #####
+##### Larval Counts #####
 larval.counts <- read.csv("Larval_Counts_Trial3.csv", header=TRUE, sep=",", na.strings="NA") #load data with a header, separated by commas, with NA as NA
 larval.counts$Avg.Live <- rowMeans(larval.counts[,c("Live1",  "Live2",  "Live3")], na.rm = TRUE) #calculate average of counts
 larval.counts$Avg.Dead <- rowMeans(larval.counts[,c("Dead1",  "Dead2",  "Dead3")], na.rm = TRUE) #calculate average of counts
@@ -131,155 +134,146 @@ larval.counts$Live.cells.ml <- larval.counts$Avg.Live/larval.counts$Volume.Count
 larval.counts$Dead.cells.ml <- larval.counts$Avg.Dead/larval.counts$Volume.Counted.ml #calculate density
 larval.counts$total.live.larvae <- larval.counts$Live.cells.ml*larval.counts$Vol.Tripour
 larval.counts$total.dead.larvae <- larval.counts$Dead.cells.ml*larval.counts$Vol.Tripour
-larval.counts$per.mort <- ((larval.counts$total.dead.larvae/(larval.counts$total.live.larvae+larval.counts$total.dead.larvae))*100)
-lar.tot <- aggregate(total.live.larvae ~ Day, data=larval.counts, sum)
-tank.lar.tot <- aggregate(total.live.larvae ~ Day + Tank, data=larval.counts, sum)
-mortality <- aggregate(per.mort ~ Day + Combo + Treatment, data=larval.counts, mean) 
+larval.counts$per.sur <- ((larval.counts$total.live.larvae/(larval.counts$total.live.larvae[1]))*100)
 
-#Tanks
-mean_larvae=tapply(larval.counts$total.live.larvae , list(larval.counts$Day, larval.counts$Tank), mean, na.rm = TRUE)
-se_larvae=tapply(larval.counts$total.live.larvae , list(larval.counts$Day, larval.counts$Tank), std.error, na.rm = TRUE)
+#calculate mean and se of live larvae
+larval.counts.means <- aggregate(total.live.larvae ~ Day*Treatment, data=larval.counts, mean)
+larval.counts.ses <- aggregate(total.live.larvae ~ Day*Treatment, data=larval.counts, std.error)
+means <- cbind(larval.counts.means, larval.counts.ses$total.live.larvae) #create dataframe
+colnames(means) <- c("Day", "Treatment","mean","se") #rename columns
 
-#Treatments
-gmean_larvae <- tapply(larval.counts$total.live.larvae , list(larval.counts$Day, larval.counts$Treatment), mean, na.rm = TRUE)
-gmean_larvae_samp <- tapply(larval.counts$total.live.larvae , list(larval.counts$Day, larval.counts$Treatment), mean, na.rm = TRUE)
-gse_larvae <- tapply(larval.counts$total.live.larvae , list(larval.counts$Day, larval.counts$Treatment), std.error, na.rm = TRUE)
-gmean_larvae <- as.data.frame(gmean_larvae)
-
-##### Plot Tank and Treatment mean ± se #####
-pdf("/Users/hputnam/MyProjects/Geoduck_Epi/project-geoduck-oa/RAnalysis/Output/running_carbonate_chemistry_tanks_Trial3.pdf")
-par(cex.axis=0.8, cex.lab=0.8, mar=c(5, 5, 4, 2),mgp=c(3.7, 0.8, 0),las=1, mfrow=c(3,3),oma=c(0,0,2,0))
-
-#Tanks
-plot(c(1,6),c(0,5000),type="n",ylab=expression(paste("pCO"["2"])), xlab=expression(paste("Tank")))
-plotCI(x=c(1,2,3,4,5,6), y=mean_pCO2,uiw=se_pCO2, liw=se_pCO2,add=TRUE,gap=0.001)
-
-plot(c(1,6),c(6.6,7.5),type="n",ylab=expression(paste("pH")), xlab=expression(paste("Tank")))
-plotCI(x=c(1,2,3,4,5,6), y=mean_pH,uiw=se_pH, liw=se_pH,add=TRUE,gap=0.001)
-
-plot(c(1,6),c(12,15),type="n",ylab=expression(paste("Temperature °C")), xlab=expression(paste("Tank")))
-plotCI(x=c(1,2,3,4,5,6), y=mean_Temp,uiw=se_Temp, liw=se_Temp,add=TRUE,gap=0.001)
-
-plot(c(1,6),c(25,29),type="n",ylab=expression(paste("Salinity")), xlab=expression(paste("Tank")))
-plotCI(x=c(1,2,3,4,5,6), y=mean_Sal,uiw=se_Sal, liw=se_Sal,add=TRUE,gap=0.001)
-
-plot(c(1,6),c(1800,2200),type="n",ylab=expression(paste("Total Alkalinity µmol kg"^"-1")), xlab=expression(paste("Tank")))
-plotCI(x=c(1,2,3,4,5,6), y=mean_TA,uiw=se_TA, liw=se_TA,add=TRUE,gap=0.001)
-
-plot(c(1,6),c(1800,2400),type="n",ylab=expression(paste("DIC µmol kg"^"-1")), xlab=expression(paste("Tank")))
-plotCI(x=c(1,2,3,4,5,6), y=mean_DIC,uiw=se_DIC, liw=se_DIC,add=TRUE,gap=0.001)
-
-plot(c(1,6),c(40000,70000),type="n", ylab=expression(paste("Algal Feed (Cells ml"^"-1",")")), xlab=expression(paste("Tank")))
-plotCI(x=c(1,2,3,4,5,6), y=mean_cells,uiw=se_cells, liw=se_cells,add=TRUE,gap=0.001)
-
-#plot(tank.lar.tot$total.live.larvae ~ tank.lar.tot$Day*tank.lar.tot$Tank, ylab=expression(paste("Number of Larvae")), xlab=expression(paste("Tank")))
-title("Tank Conditions Trial 3", outer=TRUE)
-dev.off()
+#calculate mean and se of percent survival
+larval.survival.means <- aggregate(per.sur ~ Day*Treatment, data=larval.counts, mean)
+larval.survival.ses <- aggregate(per.sur ~ Day*Treatment, data=larval.counts, std.error)
+sur.means <- cbind(larval.survival.means, larval.survival.ses$per.sur) #create dataframe
+colnames(sur.means) <- c("Day", "Treatment","mean","se") #rename columns
 
 
-pdf("/Users/hputnam/MyProjects/Geoduck_Epi/project-geoduck-oa/RAnalysis/Output/running_carbonate_chemistry_treatments_Trial3.pdf")
-par(cex.axis=0.8, cex.lab=0.8, mar=c(5, 5, 4, 2),mgp=c(3.7, 0.8, 0),las=1, mfrow=c(3,3),oma=c(0,0,2,0))
+#plot survivorship
+Fig.Survivorship <- ggplot(sur.means, aes(x=Day, y=mean, group=Treatment)) + 
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), colour="black", width=.1, position = position_dodge(width = 0.2)) + #plot sem
+  geom_point(aes(shape=Treatment), position = position_dodge(width = 0.2), size=2) + #plot points
+  scale_shape_manual(values=c(16,17,15,17)) +
+  geom_line(aes(linetype=Treatment), position = position_dodge(width = 0.2), size = 0.5) + #add lines
+  #scale_x_discrete(limits=c("Time0", "Time1", "Time2", "Time3", "Time4", "Time5"))+
+  xlab("Time") + #Label the X Axis
+  ylab("% Survivorship") + #Label the Y Axis
+  theme_bw() + #Set the background color
+  theme(axis.line = element_line(color = 'black'), #Set the axes color
+        axis.title=element_text(size=14,face="bold"), #Set axis format
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), #Set the text angle
+        panel.border = element_blank(), #Set the border
+        axis.line.x = element_line(color = 'black'), #Set the axes color
+        axis.line.y = element_line(color = 'black'), #Set the axes color
+        panel.grid.major = element_blank(), #Set the major gridlines
+        panel.grid.minor = element_blank(), #Set the minor gridlines
+        plot.background =element_blank(), #Set the plot background
+        legend.key = element_blank(), #Set plot legend key
+        legend.position=c(0.8,0.6)) #set legend position
+Fig.Survivorship
 
-#Treatments
-plot(c(1,2),c(0,5000), xaxt = "n", type="n",ylab=expression(paste("pCO"["2"])), xlab=expression(paste("Treatment")))
-axis(1, at=1:2, labels=c("pH 7.01", "pH 7.38"))
-plotCI(x=c(1,2), y=gmean_pCO2,uiw=gse_pCO2, liw=gse_pCO2,add=TRUE,gap=0.001, pch=20, col=c("red", "pink"))
+#####Larval Size#####
+size <- read.csv("OA_Size_Larval_Geoduck_Trial3.csv", header=TRUE, sep=",", na.strings="NA") #load data with a header, separated by commas, with NA as NA
+info <- read.csv("Larval_Sample.Info.csv", header=TRUE, sep=",", na.strings="NA") #load data with a header, separated by commas, with NA as NA
 
-plot(c(1,2),c(6.6,7.5), xaxt = "n", type="n",ylab=expression(paste("pH")), xlab=expression(paste("Treatment")))
-axis(1, at=1:2, labels=c("pH 7.01", "pH 7.38"))
-plotCI(x=c(1,2), y=gmean_pH,uiw=gse_pH, liw=gse_pH,add=TRUE,gap=0.001, pch=20, col=c("red", "pink"))
+#check the variation in the scale between pictures
+CV.mean <- aggregate(Scale ~ Tube.ID, data=size, mean, na.rm=TRUE) #calculate mean 
+CV.sd <- aggregate(Scale ~ Tube.ID, data=size, sd, na.rm=TRUE) #calculate standard deviation
+CVs <- cbind(CV.mean, CV.sd$Scale) # merge mean and sd into dataframe
+colnames(CVs) <- c("Tube.ID",  "Mean.Scale",  "SD.Scale") #rename the columns of the dataframe
+CVs$CV <- (CVs$SD.Scale/CVs$Mean.Scale)*100 #calculate CV of the scale bar measurements
+range(CVs$CV) #display min and max of scale CV within a tube
+Grand.CV <- (sd(na.omit(size$Scale))/mean(na.omit(size$Scale)))*100#calcualte the overall CV
+Grand.CV #coefficient of variation in scale bar between all samples ~2%
 
-plot(c(1,2),c(12,15), xaxt = "n", type="n",ylab=expression(paste("Temperature °C")), xlab=expression(paste("Treatment")))
-axis(1, at=1:2, labels=c("pH 7.01", "pH 7.38"))
-plotCI(x=c(1,2), y=gmean_Temp,uiw=gse_Temp, liw=gse_Temp,add=TRUE,gap=0.001, pch=20, col=c("red", "pink"))
+data <- merge(size, info, by="Tube.ID") #merge data and info
+data$Ratio <- data$Width/data$Length #calcualte width to length ratio
 
-plot(c(1,2),c(25,29), xaxt = "n", type="n",ylab=expression(paste("Salinity")), xlab=expression(paste("Treatment")))
-axis(1, at=1:2, labels=c("pH 7.01", "pH 7.38"))
-plotCI(x=c(1,2), y=gmean_Sal,uiw=gse_Sal, liw=gse_Sal,add=TRUE,gap=0.001, pch=20, col=c("red", "pink"))
+means <- aggregate(cbind(Length, Width,Area, Ratio)  ~ Treatment*Time*Trial, data=data, mean, na.rm=TRUE) #calculate mean
+ses <- aggregate(cbind(Length, Width,Area, Ratio) ~ Treatment*Time*Trial, data=data, std.error, na.rm=TRUE) #calculate standard error
+sizes <- cbind(means, ses$Length, ses$Width, ses$Area, ses$Ratio)
+colnames(sizes) <- c("Treatment","Time", "Trial", "Length", "Width", "Area", "Ratio", "Length.se", "Width.se", "Area.se", "Ratio.se")
 
-plot(c(1,2),c(1800,2200), xaxt = "n", type="n",ylab=expression(paste("Total Alkalinity µmol kg"^"-1")), xlab=expression(paste("Treatment")))
-axis(1, at=1:2, labels=c("pH 7.01", "pH 7.38"))
-plotCI(x=c(1,2), y=gmean_TA,uiw=gse_TA, liw=gse_TA,add=TRUE,gap=0.001, pch=20, col=c("red", "pink"))
+Fig.Length <- ggplot(sizes, aes(x=Time, y=Length, group=Treatment)) + 
+  geom_errorbar(aes(ymin=Length-Length.se, ymax=Length+Length.se), colour="black", width=.1, position = position_dodge(width = 0.2)) + #plot sem
+  geom_point(aes(shape=Treatment), position = position_dodge(width = 0.2), size=2) + #plot points
+  geom_line(aes(linetype=Treatment), position = position_dodge(width = 0.2), size = 0.5) + #add lines
+  xlab("Time") + #Label the X Axis
+  ylab("Shell Length mm") + #Label the Y Axis
+  theme_bw() + #Set the background color
+  theme(axis.line = element_line(color = 'black'), #Set the axes color
+        axis.title=element_text(size=14,face="bold"), #Set axis format
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), #Set the text angle
+        panel.border = element_blank(), #Set the border
+        axis.line.x = element_line(color = 'black'), #Set the axes color
+        axis.line.y = element_line(color = 'black'), #Set the axes color
+        panel.grid.major = element_blank(), #Set the major gridlines
+        panel.grid.minor = element_blank(), #Set the minor gridlines
+        plot.background =element_blank(), #Set the plot background
+        legend.key = element_blank(), #Set plot legend key
+        legend.position=c(0.8,0.3)) #set legend position
+Fig.Length
 
-plot(c(1,2),c(1800,2400), xaxt = "n", type="n",ylab=expression(paste("DIC µmol kg"^"-1")), xlab=expression(paste("Treatment")))
-axis(1, at=1:2, labels=c("pH 7.01", "pH 7.38"))
-plotCI(x=c(1,2), y=gmean_DIC,uiw=gse_DIC, liw=gse_DIC,add=TRUE,gap=0.001, pch=20, col=c("red", "pink"))
+Fig.Width <- ggplot(sizes, aes(x=Time, y=Width, group=Treatment)) + 
+  geom_errorbar(aes(ymin=Width-Width.se, ymax=Width+Width.se), colour="black", width=.1, position = position_dodge(width = 0.2)) + #plot sem
+  geom_point(aes(shape=Treatment), position = position_dodge(width = 0.2), size=2) + #plot points
+  geom_line(aes(linetype=Treatment), position = position_dodge(width = 0.2), size = 0.5) + #add lines
+  xlab("Time") + #Label the X Axis
+  ylab("Shell Width mm") + #Label the Y Axis
+  theme_bw() + #Set the background color
+  theme(axis.line = element_line(color = 'black'), #Set the axes color
+        axis.title=element_text(size=14,face="bold"), #Set axis format
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), #Set the text angle
+        panel.border = element_blank(), #Set the border
+        axis.line.x = element_line(color = 'black'), #Set the axes color
+        axis.line.y = element_line(color = 'black'), #Set the axes color
+        panel.grid.major = element_blank(), #Set the major gridlines
+        panel.grid.minor = element_blank(), #Set the minor gridlines
+        plot.background =element_blank(), #Set the plot background
+        legend.key = element_blank(), #Set plot legend key
+        legend.position='none') #remove legend background
+Fig.Width
 
-plot(c(1,2),c(50000,80000), xaxt = "n", type="n", ylab=expression(paste("Algal Feed (Cells ml"^"-1",")")), xlab=expression(paste("Treatment")))
-axis(1, at=1:2, labels=c("pH 7.01", "pH 7.38"))
-plotCI(x=c(1,2), y=gmean_cells,uiw=gse_cells, liw=gse_cells,add=TRUE,gap=0.001, pch=20, col=c("red", "pink"))
+Fig.Area <- ggplot(sizes, aes(x=Time, y=Area, group=Treatment)) + 
+  geom_errorbar(aes(ymin=Area-Area.se, ymax=Area+Area.se), colour="black", width=.1, position = position_dodge(width = 0.2)) + #plot sem
+  geom_point(aes(shape=Treatment), position = position_dodge(width = 0.2), size=2) + #plot points
+  geom_line(aes(linetype=Treatment), position = position_dodge(width = 0.2), size = 0.5) + #add lines
+  xlab("Time") + #Label the X Axis
+  ylab("Shell Area mm2") + #Label the Y Axis
+  theme_bw() + #Set the background color
+  theme(axis.line = element_line(color = 'black'), #Set the axes color
+        axis.title=element_text(size=14,face="bold"), #Set axis format
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), #Set the text angle
+        panel.border = element_blank(), #Set the border
+        axis.line.x = element_line(color = 'black'), #Set the axes color
+        axis.line.y = element_line(color = 'black'), #Set the axes color
+        panel.grid.major = element_blank(), #Set the major gridlines
+        panel.grid.minor = element_blank(), #Set the minor gridlines
+        plot.background =element_blank(), #Set the plot background
+        legend.key = element_blank(), #Set plot legend key
+        legend.position='none') #remove legend background
+Fig.Area
 
-#total larvae in tanks
-boxplot(total.live.larvae~Treatment*Day,data=larval.counts,col=c("red","pink"), xaxt = "n", varwidth=T, frame.plot=TRUE, ylab=expression(paste("Number of Live Larvae")))
-#axis(1, at=c(1.5, 3.5, 5.5), labels=c("Day2", "Day4", "Day5"))
-#legend("topright", c("pH 7.01","pH 7.38"), fill=c("red","pink"), bty="n", cex=0.6) 
-#axis.break(2,450000,style="slash") 
+Fig.Ratio <- ggplot(sizes, aes(x=Time, y=Ratio, group=Treatment)) + 
+  geom_errorbar(aes(ymin=Ratio-Ratio.se, ymax=Ratio+Ratio.se), colour="black", width=.1, position = position_dodge(width = 0.2)) + #plot sem
+  geom_point(aes(shape=Treatment), position = position_dodge(width = 0.2), size=2) + #plot points
+  geom_line(aes(linetype=Treatment), position = position_dodge(width = 0.2), size = 0.5) + #add lines
+  xlab("Time") + #Label the X Axis
+  ylab("Shell Ratio (W:L)") + #Label the Y Axis
+  theme_bw() + #Set the background color
+  theme(axis.line = element_line(color = 'black'), #Set the axes color
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), #Set the text angle
+        axis.title=element_text(size=14,face="bold"), #Set axis format
+        panel.border = element_blank(), #Set the border
+        axis.line.x = element_line(color = 'black'), #Set the axes color
+        axis.line.y = element_line(color = 'black'), #Set the axes color
+        panel.grid.major = element_blank(), #Set the major gridlines
+        panel.grid.minor = element_blank(), #Set the minor gridlines
+        plot.background =element_blank(), #Set the plot background
+        legend.key = element_blank(), #Set plot legend key
+        legend.position='none') #remove legend 
+Fig.Ratio
 
-gap.boxplot(larval.counts$total.live.larvae ~ larval.counts$Treatment * larval.counts$Day, #means the values are plotted againsy variable
-            gap=list(top=c(100000,480000),bottom=c(NA,NA)), ylab=expression(paste("Number of Live Larvae")),col=c("red","pink")) #specifies regions of Y axis to exclude
-legend("topright", c("pH 7.01","pH 7.38"), fill=c("red","pink"), bty="n", cex=0.6) 
-
-
-
-# Add data points
-levelProportions <- c(1,1,1,1,1,1,1,1)
-mylevels<-levels(larval.counts$Combo)
-for(i in 1:length(mylevels))
-{
-  thislevel<-mylevels[i]
-  thisvalues<-larval.counts[larval.counts$Combo==thislevel, "total.live.larvae"]
-  
-  # take the x-axis indices and add a jitter, proportional to the N in each level
-  myjitter<-jitter(rep(i, length(thisvalues)), amount=levelProportions[i]/10)
-  points(myjitter, thisvalues, pch=20, col=rgb(0,0,0,.2))   
-}
-# 
-# #percent mortality in visual checks
-# boxplot(per.mort~Treatment*Day,data=larval.counts,col=c("blue","red"), xaxt = "n", width=levelProportions, frame.plot=TRUE, ylab=expression(paste("% Mortality in Visual Checks")))
-# axis(1, at=c(1.5, 3.5, 5.5, 7.5), labels=c("Day0", "Day2", "Day4", "Day6"))
-# legend("topleft", c("Ambient","High"), fill=c("blue","red"), bty="n", cex=0.6) 
-# 
-# combos<-levels(as.factor(larval.counts$Combo))
-# for(i in 1:length(combos))
-# {
-#   thislevel<-combos[i]
-#   thisvalues<-larval.counts[larval.counts$Combo==thislevel, "per.mort"]
-#   
-#   # take the x-axis indices and add a jitter, proportional to the N in each level
-#   myjitter<-jitter(rep(i, length(thisvalues)), amount=levelProportions[i]/10)
-#   points(myjitter, thisvalues, pch=20, col=rgb(0,0,0,.2))   
-# }
-# 
-title("Treatment Conditions Trial 3", outer=TRUE)
-dev.off()
-
-#Load WiSH data
-wish.data <- read.csv("Wish_data_Trial3.csv", header=TRUE, sep=",", na.strings="NA") #load data with a header, separated by commas, with NA as NA
-date.time <- sub("-",",", wish.data$Date...Time)
-date.time <- strsplit(date.time, ",")
-date.time <- data.frame(matrix(unlist(date.time), nrow=length(date.time), byrow=T),stringsAsFactors=FALSE)
-temp.data <- wish.data[,grepl("Tank", colnames(wish.data))] #search for and subset columns containing the header name "Tank"
-temp.data <- cbind(date.time, temp.data)
-colnames(temp.data) <- c("Date", "Time", "Tank3", "Tank6", "Tank4", "Tank1", "Tank5", "Tank2")
-
-sal.data <- wish.data[,grepl("Salinity", colnames(wish.data))] #search for and subset columns containing the header name "Tank"
-sal.data <- sal.data[,grepl("Temperature", colnames(sal.data))] #search for and subset columns containing the header name "Tank"
-sal.data <- cbind(date.time, sal.data)
-colnames(sal.data) <- c("Date", "Time", "Salinity1", "Salinity2", "Salinity3", "Salinity4")
-
-##Plot temp data
-plot(temp.data$Tank1,type="l", col="pink", ylab=expression(paste("Temperature °C")), xlab=expression(paste("Time")), ylim=c(13,14.5))
-lines(temp.data$Tank2, col="lightblue" )
-lines(temp.data$Tank3, col="blue")
-lines(temp.data$Tank4, col="red")
-lines(temp.data$Tank5, col="darkred")
-lines(temp.data$Tank6, col="darkblue")
-legend("bottomleft", c("Tank1","Tank2", "Tank3","Tank4","Tank5", "Tank6" ), col=c("pink","lightblue", "blue", "red", "darkred", "darkblue"), bty="n", lwd=1, cex=0.6) 
-
-##Plot salinity data
-plot(sal.data$Salinity1,type="l", col="pink", ylab=expression(paste("Temperature °C")), xlab=expression(paste("Time")), ylim=c(20,30))
-lines(sal.data$Salinity2, col="lightblue" )
-lines(sal.data$Salinity3, col="blue")
-lines(sal.data$Salinity4, col="red")
-legend("bottomleft", c("Salinity1", "Salinity2", "Salinity3", "Salinity4"), col=c("pink","lightblue", "blue", "red"), bty="n", lwd=1, cex=0.6) 
-
+setwd("/Users/hputnam/MyProjects/Geoduck_Epi/project_larval_geoduck_OA/RAnalysis/Output")
+Larval.Size <- arrangeGrob(Fig.Length, Fig.Width, Fig.Area, Fig.Survivorship, ncol=2)
+ggsave(file="Larval_Size_Trial3.pdf", Larval.Size, width =8.5, height = 11, units = c("in"))
